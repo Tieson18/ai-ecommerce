@@ -1,6 +1,9 @@
 import { PackageIcon } from "@sanity/icons";
 import { defineField, defineType } from "sanity";
-import { MATERIALS_SANITY_LIST, COLORS_SANITY_LIST } from "@/lib/constants/filters";
+import {
+  MATERIALS_SANITY_LIST,
+  COLORS_SANITY_LIST,
+} from "@/lib/constants/filters";
 
 export const productType = defineType({
   name: "product",
@@ -42,7 +45,7 @@ export const productType = defineType({
       name: "price",
       type: "number",
       group: "details",
-      description: "Price in GBP (e.g., 599.99)",
+      description: "Price in USD (e.g., 599.99)",
       validation: (rule) => [
         rule.required().error("Price is required"),
         rule.positive().error("Price must be a positive number"),
@@ -131,7 +134,7 @@ export const productType = defineType({
     prepare({ title, subtitle, media, price }) {
       return {
         title,
-        subtitle: `${subtitle ? subtitle + " • " : ""}£${price ?? 0}`,
+        subtitle: `${subtitle ? subtitle + " • " : ""}$${price ?? 0}`,
         media,
       };
     },

@@ -1,6 +1,11 @@
-import { SanityLive } from "@/sanity/lib/live";
 import { ClerkProvider } from "@clerk/nextjs";
-import React from "react";
+import type React from "react";
+import { CartSheet } from "@/components/CartSheet";
+import { Header } from "@/components/Header";
+import { Toaster } from "@/components/ui/sonner";
+import { CartStoreProvider } from "@/lib/store/cart-store-provider";
+import { ChatStoreProvider } from "@/lib/store/chat-store-provider";
+import { SanityLive } from "@/sanity/lib/live";
 
 const layout = ({
   children,
@@ -8,10 +13,17 @@ const layout = ({
   children: React.ReactNode;
 }>) => {
   return (
-    <main>
-      <ClerkProvider>{children}</ClerkProvider>
-      <SanityLive />
-    </main>
+    <ClerkProvider>
+      <CartStoreProvider>
+        <ChatStoreProvider>
+          <Header />
+          <main>{children}</main>
+          <CartSheet />
+          <Toaster position="bottom-center" />
+          <SanityLive />
+        </ChatStoreProvider>
+      </CartStoreProvider>
+    </ClerkProvider>
   );
 };
 
