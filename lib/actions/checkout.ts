@@ -2,10 +2,10 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import Stripe from "stripe";
-import { client } from "@/sanity/lib/client";
 import { getOrCreateStripeCustomer } from "@/lib/actions/customer";
+import { client } from "@/sanity/lib/client";
 import { PRODUCTS_BY_IDS_QUERY } from "@/sanity/queries/products";
-import { CartItem } from "../store/cart-store";
+import type { CartItem } from "../store/cart-store";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY is not defined");
@@ -98,7 +98,7 @@ export async function createCheckoutSession(
               productId: product._id,
             },
           },
-          unit_amount: Math.round((product.price ?? 0) * 100), // Convert to pence
+          unit_amount: Math.round((product.price ?? 0) * 100), // Convert to cents
         },
         quantity,
       }));
@@ -129,7 +129,6 @@ export async function createCheckoutSession(
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      payment_method_types: ["card"],
       line_items: lineItems,
       customer: stripeCustomerId,
       shipping_address_collection: {

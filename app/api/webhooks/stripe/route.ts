@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { client, writeClient } from "@/sanity/lib/client";
@@ -12,6 +11,10 @@ if (!process.env.STRIPE_WEBHOOK_SECRET) {
   throw new Error("STRIPE_WEBHOOK_SECRET is not defined");
 }
 
+if (!process.env.SANITY_API_WRITE_TOKEN) {
+  throw new Error("SANITY_API_WRITE_TOKEN is not defined");
+}
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2026-06-24.dahlia",
 });
@@ -20,8 +23,7 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const headersList = await headers();
-  const signature = headersList.get("stripe-signature");
+  const signature = req.headers.get("stripe-signature");
 
   if (!signature) {
     return NextResponse.json(
@@ -45,9 +47,22 @@ export async function POST(req: Request) {
 
   // Handle the event
   switch (event.type) {
-    case "checkout.session.completed": {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
       const session = event.data.object as Stripe.Checkout.Session;
-      await handleCheckoutCompleted(session);
+      if (session.payment_status !== "paid") {
+        console.log(
+          `Checkout session ${session.id} has payment_status=${session.payment_status}; waiting for payment confirmation`,
+        );
+        break;
+      }
+
+      await handleCheckoutPaid(session);
+      break;
+    }
+    case "checkout.session.async_payment_failed": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      console.warn(`Payment failed for checkout session ${session.id}`);
       break;
     }
     default:
@@ -57,11 +72,71 @@ export async function POST(req: Request) {
   return NextResponse.json({ received: true });
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const stripePaymentId = session.payment_intent as string;
+function getStripePaymentId(session: Stripe.Checkout.Session) {
+  const paymentIntent = session.payment_intent;
+
+  if (typeof paymentIntent === "string") {
+    return paymentIntent;
+  }
+
+  if (paymentIntent?.id) {
+    return paymentIntent.id;
+  }
+
+  throw new Error(`Checkout session ${session.id} is missing payment_intent`);
+}
+
+function parseCsv(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getCheckoutMetadata(session: Stripe.Checkout.Session) {
+  const {
+    clerkUserId,
+    userEmail,
+    sanityCustomerId,
+    productIds: productIdsString,
+    quantities: quantitiesString,
+  } = session.metadata ?? {};
+
+  if (!clerkUserId || !productIdsString || !quantitiesString) {
+    throw new Error(`Checkout session ${session.id} is missing order metadata`);
+  }
+
+  const productIds = parseCsv(productIdsString);
+  const quantities = parseCsv(quantitiesString).map(Number);
+
+  if (productIds.length === 0 || productIds.length !== quantities.length) {
+    throw new Error(
+      `Checkout session ${session.id} has mismatched order metadata`,
+    );
+  }
+
+  if (
+    quantities.some((quantity) => !Number.isInteger(quantity) || quantity <= 0)
+  ) {
+    throw new Error(
+      `Checkout session ${session.id} has invalid item quantities`,
+    );
+  }
+
+  return {
+    clerkUserId,
+    userEmail,
+    sanityCustomerId,
+    productIds,
+    quantities,
+  };
+}
+
+async function handleCheckoutPaid(session: Stripe.Checkout.Session) {
+  const stripePaymentId = getStripePaymentId(session);
 
   try {
-    // Idempotency check: prevent duplicate processing on webhook retries
+    // Idempotency check: prevent duplicate processing on webhook retries.
     const existingOrder = await client.fetch(ORDER_BY_STRIPE_PAYMENT_ID_QUERY, {
       stripePaymentId,
     });
@@ -73,43 +148,33 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       return;
     }
 
-    // Extract metadata
-    const {
-      clerkUserId,
-      userEmail,
-      sanityCustomerId,
-      productIds: productIdsString,
-      quantities: quantitiesString,
-    } = session.metadata ?? {};
+    const { clerkUserId, userEmail, sanityCustomerId, productIds, quantities } =
+      getCheckoutMetadata(session);
 
-    if (!clerkUserId || !productIdsString || !quantitiesString) {
-      console.error("Missing metadata in checkout session");
-      return;
-    }
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+      limit: 100,
+    });
 
-    const productIds = productIdsString.split(",");
-    const quantities = quantitiesString.split(",").map(Number);
+    const orderItems = productIds.map((productId, index) => {
+      const lineItem = lineItems.data[index];
+      const lineItemQuantity = lineItem?.quantity ?? quantities[index];
+      const priceAtPurchase =
+        lineItem?.amount_total && lineItemQuantity
+          ? lineItem.amount_total / lineItemQuantity / 100
+          : 0;
 
-    // Get line items from Stripe
-    const lineItems = await stripe.checkout.sessions.listLineItems(session.id);
+      return {
+        _key: `item-${index}`,
+        product: {
+          _type: "reference" as const,
+          _ref: productId,
+        },
+        quantity: quantities[index],
+        priceAtPurchase,
+      };
+    });
 
-    // Build order items array
-    const orderItems = productIds.map((productId, index) => ({
-      _key: `item-${index}`,
-      product: {
-        _type: "reference" as const,
-        _ref: productId,
-      },
-      quantity: quantities[index],
-      priceAtPurchase: lineItems.data[index]?.amount_total
-        ? lineItems.data[index].amount_total / 100
-        : 0,
-    }));
-
-    // Generate order number
     const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-
-    // Extract shipping address
     const shippingAddress = session.customer_details?.address;
     const address = shippingAddress
       ? {
@@ -122,8 +187,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         }
       : undefined;
 
-    // Create order in Sanity with customer reference
-    const order = await writeClient.create({
+    const order = {
       _type: "order",
       orderNumber,
       ...(sanityCustomerId && {
@@ -140,22 +204,22 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       stripePaymentId,
       address,
       createdAt: new Date().toISOString(),
-    });
+    };
 
-    console.log(`Order created: ${order._id} (${orderNumber})`);
-
-    // Decrease stock for all products in a single transaction
+    // Commit the order and stock updates together so retries cannot leave partial state.
     await productIds
       .reduce(
         (tx, productId, i) =>
           tx.patch(productId, (p) => p.dec({ stock: quantities[i] })),
-        writeClient.transaction(),
+        writeClient.transaction().create(order),
       )
-      .commit();
+      .commit({ visibility: "sync" });
 
-    console.log(`Stock updated for ${productIds.length} products`);
+    console.log(
+      `Order created: ${orderNumber}; stock updated for ${productIds.length} products`,
+    );
   } catch (error) {
-    console.error("Error handling checkout.session.completed:", error);
-    throw error; // Re-throw to return 500 and trigger Stripe retry
+    console.error("Error handling paid checkout session:", error);
+    throw error; // Re-throw to return 500 and trigger Stripe retry.
   }
 }

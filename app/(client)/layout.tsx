@@ -13,17 +13,15 @@ const layout = ({
   children: React.ReactNode;
 }>) => {
   return (
-    <ClerkProvider>
-      <CartStoreProvider>
-        <ChatStoreProvider>
-          <Header />
-          <main>{children}</main>
-          <CartSheet />
-          <Toaster position="bottom-center" />
-          <SanityLive />
-        </ChatStoreProvider>
-      </CartStoreProvider>
-    </ClerkProvider>
+    <CartStoreProvider>
+      <ChatStoreProvider>
+        <Header />
+        <main>{children}</main>
+        <CartSheet />
+        <Toaster position="bottom-center" />
+        <SanityLive />
+      </ChatStoreProvider>
+    </CartStoreProvider>
   );
 };
 
