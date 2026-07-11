@@ -2,12 +2,12 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { Package, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
 import { sanityFetch } from "@/sanity/lib/live";
-import { ORDERS_BY_USER_QUERY } from "@/lib/sanity/queries/orders";
+import { ORDERS_BY_USER_QUERY } from "@/sanity/queries/orders";
+import { EmptyState } from "@/components/client/empty-state";
 import { getOrderStatus } from "@/lib/constants/orderStatus";
-import { formatPrice, formatDate, formatOrderNumber } from "@/lib/utils";
-import { StackedProductImages } from "@/components/app/StackedProductImages";
+import { formatDate, formatOrderNumber, formatPrice } from "@/lib/utils";
+import { StackedProductImages } from "@/components/client/StackedProductImages";
 
 export const metadata = {
   title: "Your Orders | Furniture Shop",

@@ -8,6 +8,7 @@ const publicRoutes = [
   "/orders",
   "/orders/[id]",
   "/checkout/success",
+  "/api/chat",
 ];
 
 const isPublicRoute = createRouteMatcher(publicRoutes);

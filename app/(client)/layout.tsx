@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { CartStoreProvider } from "@/lib/store/cart-store-provider";
 import { ChatStoreProvider } from "@/lib/store/chat-store-provider";
 import { SanityLive } from "@/sanity/lib/live";
+import { ChatSheet } from "../../components/chat/ChatSheet";
+import { AppShell } from "@/components/AppShell";
 
 const layout = ({
   children,
@@ -15,9 +17,12 @@ const layout = ({
   return (
     <CartStoreProvider>
       <ChatStoreProvider>
-        <Header />
-        <main>{children}</main>
+        <AppShell>
+          <Header />
+          <main>{children}</main>
+        </AppShell>
         <CartSheet />
+        <ChatSheet />
         <Toaster position="bottom-center" />
         <SanityLive />
       </ChatStoreProvider>
