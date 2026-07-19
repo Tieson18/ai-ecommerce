@@ -1,34 +1,24 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
 import { useAuth } from "@clerk/nextjs";
-import { DefaultChatTransport } from "ai";
-import {
-  AlertCircle,
-  Bot,
-  CircleStop,
-  RefreshCcw,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Sparkles, Send, Loader2, X, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { ShoppingUIMessage } from "@/lib/ai/shopping-agent";
 import {
-  useChatActions,
   useIsChatOpen,
+  useChatActions,
   usePendingMessage,
 } from "@/lib/store/chat-store-provider";
 
 import {
   getMessageText,
   getToolParts,
+  WelcomeScreen,
   MessageBubble,
   ToolCallUI,
-  WelcomeScreen,
-} from "../chat";
+} from "./";
 
 export function ChatSheet() {
   const isOpen = useIsChatOpen();
@@ -37,62 +27,31 @@ export function ChatSheet() {
   const { isSignedIn } = useAuth();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatTransport = useMemo(
-    () =>
-      new DefaultChatTransport<ShoppingUIMessage>({
-        api: "/api/chat",
-        credentials: "same-origin",
-      }),
-    [],
-  );
 
-  const { messages, sendMessage, status, error, regenerate, stop, clearError } =
-    useChat<ShoppingUIMessage>({
-      transport: chatTransport,
-      throttle: 50,
-      onError: (error) => {
-        console.error("[ChatSheet] Chat request failed:", error);
-      },
-    });
-  const isBusy = status === "streaming" || status === "submitted";
+  const { messages, sendMessage, status } = useChat();
+  const isLoading = status === "streaming" || status === "submitted";
 
-  const sendPrompt = useCallback(
-    (message: { text: string }) => {
-      const text = message.text.trim();
-      if (!text || isBusy) return;
-
-      if (status === "error") {
-        clearError();
-      }
-
-      void sendMessage({ text });
-    },
-    [clearError, isBusy, sendMessage, status],
-  );
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when messages or busy state update during streaming
+  // Auto-scroll to bottom when new messages arrive or streaming updates
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger scroll on message/loading changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isBusy]);
+  }, [messages, isLoading]);
 
+  // Handle pending message - send it when chat opens
   useEffect(() => {
-    if (isOpen && pendingMessage && !isBusy) {
-      sendPrompt({ text: pendingMessage });
+    if (isOpen && pendingMessage && !isLoading) {
+      sendMessage({ text: pendingMessage });
       clearPendingMessage();
     }
-  }, [isOpen, pendingMessage, isBusy, sendPrompt, clearPendingMessage]);
+  }, [isOpen, pendingMessage, isLoading, sendMessage, clearPendingMessage]);
 
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      const text = input.trim();
-      if (!text || isBusy) return;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
 
-      sendPrompt({ text });
-      setInput("");
-    },
-    [input, isBusy, sendPrompt],
-  );
+    sendMessage({ text: input });
+    setInput("");
+  };
 
   if (!isOpen) return null;
 
@@ -106,7 +65,7 @@ export function ChatSheet() {
       />
 
       {/* Sidebar */}
-      <div className="fixed top-0 right-0 z-50 flex h-full w-full flex-col border-l border-zinc-200 bg-white overscroll-contain dark:border-zinc-800 dark:bg-zinc-950 sm:w-[448px] animate-in slide-in-from-right duration-300">
+      <div className="fixed top-0 right-0 z-50 flex h-full w-full flex-col border-l border-zinc-200 bg-white overscroll-contain dark:border-zinc-800 dark:bg-zinc-950 sm:w-md animate-in slide-in-from-right duration-300">
         {/* Header */}
         <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex h-16 items-center justify-between px-6">
@@ -124,7 +83,7 @@ export function ChatSheet() {
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
           {messages.length === 0 ? (
             <WelcomeScreen
-              onSuggestionClick={sendPrompt}
+              onSuggestionClick={sendMessage}
               isSignedIn={isSignedIn ?? false}
             />
           ) : (
@@ -162,7 +121,7 @@ export function ChatSheet() {
               })}
 
               {/* Loading indicator */}
-              {isBusy && messages[messages.length - 1]?.role === "user" && (
+              {isLoading && messages[messages.length - 1]?.role === "user" && (
                 <div className="flex gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
                     <Bot className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -185,52 +144,21 @@ export function ChatSheet() {
 
         {/* Input */}
         <div className="border-t border-zinc-200 px-4 py-4 dark:border-zinc-800">
-          {error && (
-            <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p className="min-w-0 flex-1">
-                Something went wrong. Please retry or send a new message.
-              </p>
-              <div className="flex shrink-0 gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => void regenerate()}
-                  aria-label="Retry response"
-                >
-                  <RefreshCcw className="h-3 w-3" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={clearError}
-                  aria-label="Dismiss error"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          )}
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about our furniture..."
-              disabled={isBusy}
-              aria-invalid={error ? true : undefined}
+              disabled={isLoading}
               className="flex-1"
             />
             <Button
-              type={isBusy ? "button" : "submit"}
+              type="submit"
               size="icon"
-              onClick={isBusy ? () => void stop() : undefined}
-              disabled={!isBusy && !input.trim()}
-              aria-label={isBusy ? "Stop response" : "Send message"}
+              disabled={!input.trim() || isLoading}
             >
-              {isBusy ? (
-                <CircleStop className="h-4 w-4" />
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />
               )}

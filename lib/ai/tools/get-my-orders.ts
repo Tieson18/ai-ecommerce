@@ -1,15 +1,21 @@
-import "server-only";
-
 import { tool } from "ai";
 import { z } from "zod";
-import {
-  getOrderStatusEmoji,
-  ORDER_STATUS_VALUES,
-} from "@/lib/constants/orderStatus";
-import { formatPrice } from "@/lib/utils";
 import { sanityFetch } from "@/sanity/lib/live";
+import {
+  ORDER_STATUS_VALUES,
+  getOrderStatusEmoji,
+} from "@/lib/constants/orderStatus";
 import { ORDERS_BY_USER_QUERY } from "@/sanity/queries/orders";
+import { formatPrice } from "@/lib/utils";
 import type { ORDERS_BY_USER_QUERY_RESULT } from "@/sanity.types";
+
+const getMyOrdersSchema = z.object({
+  status: z
+    .enum(["", ...ORDER_STATUS_VALUES])
+    .optional()
+    .default("")
+    .describe("Filter orders by status (leave empty for all orders)"),
+});
 
 export interface OrderSummary {
   id: string;
@@ -31,39 +37,22 @@ export interface GetMyOrdersResult {
   orders: OrderSummary[];
   totalOrders: number;
   isAuthenticated: boolean;
-  error?: string;
 }
 
-const getMyOrdersSchema = z.object({
-  status: z
-    .enum(["", ...ORDER_STATUS_VALUES])
-    .optional()
-    .default("")
-    .describe("Filter orders by status (leave empty for all orders)"),
-});
-
 /**
- * Creates a getMyOrders tool bound to the current Clerk user.
- * Anonymous users receive a typed tool result instead of removing the tool from
- * the agent, which keeps the AI SDK UI stream schema stable.
+ * Creates a getMyOrders tool bound to a specific user ID
+ * Returns null if no userId provided (user not authenticated)
  */
 export function createGetMyOrdersTool(userId: string | null) {
+  if (!userId) {
+    return null;
+  }
+
   return tool({
     description:
       "Get the current user's orders. Can optionally filter by order status. Only works for authenticated users.",
     inputSchema: getMyOrdersSchema,
     execute: async ({ status }) => {
-      if (!userId) {
-        return {
-          found: false,
-          message:
-            "To check your orders, you'll need to sign in first. Click the user icon in the top right to sign in or create an account.",
-          orders: [],
-          totalOrders: 0,
-          isAuthenticated: false,
-        } satisfies GetMyOrdersResult;
-      }
-
       console.log("[GetMyOrders] Fetching orders for user:", userId, {
         status,
       });

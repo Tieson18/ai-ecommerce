@@ -1,20 +1,10 @@
-import "server-only";
-
-import {
-  type GatewayModelId,
-  gateway,
-  type InferAgentUIMessage,
-  ToolLoopAgent,
-} from "ai";
-import { createGetMyOrdersTool } from "./tools/get-my-orders";
+import { gateway, type Tool, ToolLoopAgent } from "ai";
 import { searchProductsTool } from "./tools/search-products";
+import { createGetMyOrdersTool } from "./tools/get-my-orders";
 
 interface ShoppingAgentOptions {
   userId: string | null;
 }
-
-const SHOPPING_AGENT_MODEL =
-  "anthropic/claude-opus-4.8" satisfies GatewayModelId;
 
 const baseInstructions = `You are a friendly shopping assistant for a premium furniture store.
 
@@ -28,8 +18,8 @@ The searchProducts tool accepts these parameters:
 | category | string | Category slug: "", "sofas", "tables", "chairs", "storage" |
 | material | enum | "", "wood", "metal", "fabric", "leather", "glass" |
 | color | enum | "", "black", "white", "oak", "walnut", "grey", "natural" |
-| minPrice | number | Minimum price in GBP (0 = no minimum) |
-| maxPrice | number | Maximum price in GBP (0 = no maximum) |
+| minPrice | number | Minimum price in USD (0 = no minimum) |
+| maxPrice | number | Maximum price in USD (0 = no maximum) |
 
 ### How to Search
 
@@ -148,7 +138,7 @@ The tool returns products with these fields:
 - Be warm and helpful
 - Keep responses concise
 - Use bullet points for product features
-- Always include prices in GBP (£)
+- Always include prices in USD (£)
 - Link to products using markdown: [Name](/products/slug)`;
 
 const ordersInstructions = `
@@ -200,15 +190,20 @@ export function createShoppingAgent({ userId }: ShoppingAgentOptions) {
     ? baseInstructions + ordersInstructions
     : baseInstructions + notAuthenticatedInstructions;
 
+  // Build tools - only include orders tool if authenticated
+  const getMyOrdersTool = createGetMyOrdersTool(userId);
+
+  const tools: Record<string, Tool> = {
+    searchProducts: searchProductsTool,
+  };
+
+  if (getMyOrdersTool) {
+    tools.getMyOrders = getMyOrdersTool;
+  }
+
   return new ToolLoopAgent({
-    model: gateway(SHOPPING_AGENT_MODEL),
+    model: gateway("anthropic/claude-sonnet-4.5"),
     instructions,
-    tools: {
-      searchProducts: searchProductsTool,
-      getMyOrders: createGetMyOrdersTool(userId),
-    },
+    tools,
   });
 }
-
-export type ShoppingAgent = ReturnType<typeof createShoppingAgent>;
-export type ShoppingUIMessage = InferAgentUIMessage<ShoppingAgent>;

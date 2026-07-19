@@ -1,14 +1,12 @@
-import "server-only";
-
 import { tool } from "ai";
 import { z } from "zod";
-import type { SearchProduct } from "@/lib/ai/types";
-import { COLOR_VALUES, MATERIAL_VALUES } from "@/lib/constants/filters";
-import { getStockMessage, getStockStatus } from "@/lib/constants/stock";
-import { formatPrice } from "@/lib/utils";
 import { sanityFetch } from "@/sanity/lib/live";
 import { AI_SEARCH_PRODUCTS_QUERY } from "@/sanity/queries/products";
+import { formatPrice } from "@/lib/utils";
+import { getStockStatus, getStockMessage } from "@/lib/constants/stock";
+import { MATERIAL_VALUES, COLOR_VALUES } from "@/lib/constants/filters";
 import type { AI_SEARCH_PRODUCTS_QUERY_RESULT } from "@/sanity.types";
+import type { SearchProduct } from "@/lib/ai/types";
 
 const productSearchSchema = z.object({
   query: z

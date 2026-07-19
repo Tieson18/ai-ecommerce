@@ -38,3 +38,6 @@ export interface SearchProductsResult {
     maxPrice: number;
   };
 }
+
+// Re-export order types from the tool
+export type { OrderSummary, GetMyOrdersResult } from "./tools/get-my-orders";
