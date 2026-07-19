@@ -5,9 +5,9 @@ import { auth } from "@clerk/nextjs/server";
 import { ArrowLeft, CreditCard, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { sanityFetch } from "@/sanity/lib/live";
-import { ORDER_BY_ID_QUERY } from "@/lib/sanity/queries/orders";
 import { getOrderStatus } from "@/lib/constants/orderStatus";
 import { formatPrice, formatDate } from "@/lib/utils";
+import { ORDER_BY_ID_QUERY } from "@/sanity/queries/orders";
 
 export const metadata = {
   title: "Order Details | Furniture Shop",
