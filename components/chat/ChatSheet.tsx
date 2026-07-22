@@ -1,23 +1,31 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
 import { useAuth } from "@clerk/nextjs";
-import { Sparkles, Send, Loader2, X, Bot } from "lucide-react";
+import {
+  AlertCircle,
+  Bot,
+  Loader2,
+  RotateCcw,
+  Send,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  useIsChatOpen,
   useChatActions,
+  useIsChatOpen,
   usePendingMessage,
 } from "@/lib/store/chat-store-provider";
 
 import {
   getMessageText,
   getToolParts,
-  WelcomeScreen,
   MessageBubble,
   ToolCallUI,
+  WelcomeScreen,
 } from "./";
 
 export function ChatSheet() {
@@ -28,7 +36,8 @@ export function ChatSheet() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status } = useChat();
+  const { clearError, error, messages, regenerate, sendMessage, status } =
+    useChat();
   const isLoading = status === "streaming" || status === "submitted";
 
   // Auto-scroll to bottom when new messages arrive or streaming updates
@@ -81,7 +90,7 @@ export function ChatSheet() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !error ? (
             <WelcomeScreen
               onSuggestionClick={sendMessage}
               isSignedIn={isSignedIn ?? false}
@@ -131,6 +140,42 @@ export function ChatSheet() {
                       <span className="h-2 w-2 animate-bounce rounded-full bg-amber-400 [animation-delay:-0.3s]" />
                       <span className="h-2 w-2 animate-bounce rounded-full bg-amber-400 [animation-delay:-0.15s]" />
                       <span className="h-2 w-2 animate-bounce rounded-full bg-amber-400" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error state */}
+              {error && (
+                <div className="flex gap-3" role="alert">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                    <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div className="max-w-[80%] rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-100">
+                    <p className="font-medium">
+                      I couldn't finish that response.
+                    </p>
+                    <p className="mt-1 text-red-700 dark:text-red-200">
+                      {error.message || "Please try again."}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => void regenerate()}
+                        disabled={isLoading}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Retry
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearError}
+                      >
+                        Dismiss
+                      </Button>
                     </div>
                   </div>
                 </div>

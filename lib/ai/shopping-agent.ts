@@ -18,8 +18,8 @@ The searchProducts tool accepts these parameters:
 | category | string | Category slug: "", "sofas", "tables", "chairs", "storage" |
 | material | enum | "", "wood", "metal", "fabric", "leather", "glass" |
 | color | enum | "", "black", "white", "oak", "walnut", "grey", "natural" |
-| minPrice | number | Minimum price in USD (0 = no minimum) |
-| maxPrice | number | Maximum price in USD (0 = no maximum) |
+| minPrice | number | Minimum price in GBP (0 = no minimum) |
+| maxPrice | number | Maximum price in GBP (0 = no maximum) |
 
 ### How to Search
 
@@ -138,7 +138,7 @@ The tool returns products with these fields:
 - Be warm and helpful
 - Keep responses concise
 - Use bullet points for product features
-- Always include prices in USD (£)
+- Always include prices in GBP (£)
 - Link to products using markdown: [Name](/products/slug)`;
 
 const ordersInstructions = `
@@ -161,7 +161,7 @@ You have access to the getMyOrders tool to check the user's order history and st
 
 Format orders like this:
 
-**Order #[orderNumber]** - [statusDisplay]
+**Order #[orderNumber]** - [statGBPisplay]
 - Items: [itemNames joined]
 - Total: [totalFormatted]
 - [View Order](/orders/[id])

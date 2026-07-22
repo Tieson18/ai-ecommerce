@@ -1,4 +1,4 @@
-import type { UIMessage } from "ai";
+import { isToolUIPart, type UIMessage } from "ai";
 import type { ToolCallPart } from "./types";
 
 // Extract text content from message parts
@@ -17,9 +17,7 @@ export function getToolParts(message: UIMessage): ToolCallPart[] {
   if (!message.parts || message.parts.length === 0) {
     return [];
   }
-  return message.parts
-    .filter((part) => part.type.startsWith("tool-"))
-    .map((part) => part as unknown as ToolCallPart);
+  return message.parts.filter(isToolUIPart);
 }
 
 // Get human-readable tool name

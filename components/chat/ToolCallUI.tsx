@@ -1,38 +1,88 @@
-import { Search, Package, CheckCircle2, Loader2 } from "lucide-react";
-import type { ToolCallPart } from "./types";
-import type { SearchProductsResult } from "@/lib/ai/types";
+import { getToolName } from "ai";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Package,
+  Search,
+} from "lucide-react";
 import type { GetMyOrdersResult } from "@/lib/ai/tools/get-my-orders";
-import { getToolDisplayName } from "./utils";
-import { ProductCardWidget } from "./ProductCardWidget";
+import type { SearchProductsResult } from "@/lib/ai/types";
 import { OrderCardWidget } from "./OrderCardWidget";
+import { ProductCardWidget } from "./ProductCardWidget";
+import type { ToolCallPart } from "./types";
+import { getToolDisplayName } from "./utils";
 
 interface ToolCallUIProps {
   toolPart: ToolCallPart;
   closeChat: () => void;
 }
 
+function getInputValue(input: unknown, key: string): string | undefined {
+  if (typeof input !== "object" || input === null) {
+    return undefined;
+  }
+
+  const value = (input as Record<string, unknown>)[key];
+  return value === undefined || value === null || value === ""
+    ? undefined
+    : String(value);
+}
+
 export function ToolCallUI({ toolPart, closeChat }: ToolCallUIProps) {
-  const toolName = toolPart.toolName || toolPart.type.replace("tool-", "");
+  const toolName = getToolName(toolPart);
   const displayName = getToolDisplayName(toolName);
 
-  // Check for completion
-  const isComplete =
-    toolPart.state === "result" ||
-    toolPart.result !== undefined ||
-    toolPart.output !== undefined;
+  const toolStatus = (() => {
+    switch (toolPart.state) {
+      case "output-available":
+        return {
+          label: `${displayName} complete`,
+          tone: "success" as const,
+        };
+      case "output-error":
+        return {
+          detail: toolPart.errorText,
+          label: `${displayName} failed`,
+          tone: "error" as const,
+        };
+      case "output-denied":
+        return {
+          detail: "This tool call was denied.",
+          label: `${displayName} denied`,
+          tone: "error" as const,
+        };
+      case "approval-requested":
+        return {
+          label: `${displayName} needs approval`,
+          tone: "loading" as const,
+        };
+      case "approval-responded":
+      case "input-available":
+      case "input-streaming":
+        return {
+          label: `${displayName}...`,
+          tone: "loading" as const,
+        };
+    }
+  })();
+
+  const isComplete = toolStatus.tone === "success";
+  const isError = toolStatus.tone === "error";
 
   const searchQuery =
-    toolName === "searchProducts" && toolPart.args?.query
-      ? String(toolPart.args.query)
+    toolName === "searchProducts"
+      ? getInputValue(toolPart.input, "query")
       : undefined;
 
   const orderStatus =
-    toolName === "getMyOrders" && toolPart.args?.status
-      ? String(toolPart.args.status)
+    toolName === "getMyOrders"
+      ? getInputValue(toolPart.input, "status")
       : undefined;
 
   // Get results based on tool type
-  const result = toolPart.result || toolPart.output;
+  const result =
+    toolPart.state === "output-available" ? toolPart.output : undefined;
   const productResult = result as SearchProductsResult | undefined;
   const orderResult = result as GetMyOrdersResult | undefined;
 
@@ -62,11 +112,15 @@ export function ToolCallUI({ toolPart, closeChat }: ToolCallUIProps) {
           className={`flex items-center gap-3 rounded-xl px-4 py-2 text-sm ${
             isComplete
               ? "bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800"
-              : "bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
+              : isError
+                ? "bg-red-50 border border-red-200 dark:bg-red-950/30 dark:border-red-900/50"
+                : "bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
           }`}
         >
           {isComplete ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          ) : isError ? (
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
           ) : (
             <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-spin shrink-0" />
           )}
@@ -75,11 +129,18 @@ export function ToolCallUI({ toolPart, closeChat }: ToolCallUIProps) {
               className={`font-medium ${
                 isComplete
                   ? "text-emerald-700 dark:text-emerald-300"
-                  : "text-amber-700 dark:text-amber-300"
+                  : isError
+                    ? "text-red-700 dark:text-red-300"
+                    : "text-amber-700 dark:text-amber-300"
               }`}
             >
-              {isComplete ? `${displayName} complete` : `${displayName}...`}
+              {toolStatus.label}
             </span>
+            {toolStatus.detail && (
+              <span className="text-xs text-red-600 dark:text-red-300">
+                {toolStatus.detail}
+              </span>
+            )}
             {searchQuery && (
               <span className="text-xs text-zinc-500 dark:text-zinc-400">
                 Query: &quot;{searchQuery}&quot;
