@@ -161,7 +161,7 @@ You have access to the getMyOrders tool to check the user's order history and st
 
 Format orders like this:
 
-**Order #[orderNumber]** - [statGBPisplay]
+**Order #[orderNumber]** - [statusDisplay]
 - Items: [itemNames joined]
 - Total: [totalFormatted]
 - [View Order](/orders/[id])
