@@ -1,5 +1,3 @@
-import type { DynamicToolUIPart, UIMessage } from "ai";
+import type { DynamicToolUIPart, ToolUIPart } from "ai";
 
-export type ToolCallPart =
-  | Extract<UIMessage["parts"][number], { type: `tool-${string}` }>
-  | DynamicToolUIPart;
+export type ToolCallPart = ToolUIPart | DynamicToolUIPart;

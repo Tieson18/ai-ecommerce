@@ -1,25 +1,26 @@
-import {
-  isDynamicToolUIPart,
-  isToolUIPart,
-  type TextUIPart,
-  type UIMessage,
-} from "ai";
+import { isToolUIPart, type UIMessage } from "ai";
 import type { ToolCallPart } from "./types";
 
+// Extract text content from message parts
 export function getMessageText(message: UIMessage): string {
+  if (!message.parts || message.parts.length === 0) {
+    return "";
+  }
   return message.parts
-    .filter((part): part is TextUIPart => part.type === "text")
-    .map((part) => part.text)
+    .filter((part) => part.type === "text")
+    .map((part) => (part as { type: "text"; text: string }).text)
     .join("\n");
 }
 
+// Check if message has tool calls (parts starting with "tool-")
 export function getToolParts(message: UIMessage): ToolCallPart[] {
-  return message.parts.filter(
-    (part): part is ToolCallPart =>
-      isToolUIPart(part) || isDynamicToolUIPart(part),
-  );
+  if (!message.parts || message.parts.length === 0) {
+    return [];
+  }
+  return message.parts.filter(isToolUIPart);
 }
 
+// Get human-readable tool name
 export function getToolDisplayName(toolName: string): string {
   const toolNames: Record<string, string> = {
     searchProducts: "Searching products",

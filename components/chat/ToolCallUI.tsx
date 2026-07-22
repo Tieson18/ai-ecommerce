@@ -1,3 +1,4 @@
+import { getToolName } from "ai";
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,85 +18,73 @@ interface ToolCallUIProps {
   closeChat: () => void;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function getToolName(toolPart: ToolCallPart): string {
-  if (toolPart.type === "dynamic-tool") {
-    return toolPart.toolName;
-  }
-
-  return toolPart.type.replace("tool-", "");
-}
-
-function getToolInput(toolPart: ToolCallPart): unknown {
-  return "input" in toolPart ? toolPart.input : undefined;
-}
-
-function getToolOutput(toolPart: ToolCallPart): unknown {
-  return "output" in toolPart ? toolPart.output : undefined;
-}
-
-function getToolErrorText(toolPart: ToolCallPart): string | undefined {
-  if (!("errorText" in toolPart)) {
+function getInputValue(input: unknown, key: string): string | undefined {
+  if (typeof input !== "object" || input === null) {
     return undefined;
   }
 
-  return typeof toolPart.errorText === "string"
-    ? toolPart.errorText
-    : undefined;
-}
-
-function getStringField(value: unknown, field: string): string | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const fieldValue = value[field];
-  return typeof fieldValue === "string" && fieldValue.length > 0
-    ? fieldValue
-    : undefined;
-}
-
-function isSearchProductsResult(value: unknown): value is SearchProductsResult {
-  return (
-    isRecord(value) &&
-    typeof value.found === "boolean" &&
-    Array.isArray(value.products)
-  );
-}
-
-function isGetMyOrdersResult(value: unknown): value is GetMyOrdersResult {
-  return (
-    isRecord(value) &&
-    typeof value.found === "boolean" &&
-    Array.isArray(value.orders) &&
-    typeof value.isAuthenticated === "boolean"
-  );
+  const value = (input as Record<string, unknown>)[key];
+  return value === undefined || value === null || value === ""
+    ? undefined
+    : String(value);
 }
 
 export function ToolCallUI({ toolPart, closeChat }: ToolCallUIProps) {
   const toolName = getToolName(toolPart);
   const displayName = getToolDisplayName(toolName);
-  const input = getToolInput(toolPart);
-  const output = getToolOutput(toolPart);
-  const errorText = getToolErrorText(toolPart);
 
-  const isComplete =
-    toolPart.state === "output-available" ||
-    toolPart.state === "output-error" ||
-    output !== undefined;
-  const hasError = toolPart.state === "output-error" || errorText !== undefined;
+  const toolStatus = (() => {
+    switch (toolPart.state) {
+      case "output-available":
+        return {
+          label: `${displayName} complete`,
+          tone: "success" as const,
+        };
+      case "output-error":
+        return {
+          detail: toolPart.errorText,
+          label: `${displayName} failed`,
+          tone: "error" as const,
+        };
+      case "output-denied":
+        return {
+          detail: "This tool call was denied.",
+          label: `${displayName} denied`,
+          tone: "error" as const,
+        };
+      case "approval-requested":
+        return {
+          label: `${displayName} needs approval`,
+          tone: "loading" as const,
+        };
+      case "approval-responded":
+      case "input-available":
+      case "input-streaming":
+        return {
+          label: `${displayName}...`,
+          tone: "loading" as const,
+        };
+    }
+  })();
+
+  const isComplete = toolStatus.tone === "success";
+  const isError = toolStatus.tone === "error";
 
   const searchQuery =
-    toolName === "searchProducts" ? getStringField(input, "query") : undefined;
+    toolName === "searchProducts"
+      ? getInputValue(toolPart.input, "query")
+      : undefined;
 
   const orderStatus =
-    toolName === "getMyOrders" ? getStringField(input, "status") : undefined;
+    toolName === "getMyOrders"
+      ? getInputValue(toolPart.input, "status")
+      : undefined;
 
-  const productResult = isSearchProductsResult(output) ? output : undefined;
-  const orderResult = isGetMyOrdersResult(output) ? output : undefined;
+  // Get results based on tool type
+  const result =
+    toolPart.state === "output-available" ? toolPart.output : undefined;
+  const productResult = result as SearchProductsResult | undefined;
+  const orderResult = result as GetMyOrdersResult | undefined;
 
   const hasProducts =
     toolName === "searchProducts" &&
@@ -121,36 +110,37 @@ export function ToolCallUI({ toolPart, closeChat }: ToolCallUIProps) {
         </div>
         <div
           className={`flex items-center gap-3 rounded-xl px-4 py-2 text-sm ${
-            hasError
-              ? "bg-red-50 border border-red-200 dark:bg-red-950/30 dark:border-red-800"
-              : isComplete
-                ? "bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800"
+            isComplete
+              ? "bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800"
+              : isError
+                ? "bg-red-50 border border-red-200 dark:bg-red-950/30 dark:border-red-900/50"
                 : "bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
           }`}
         >
-          {hasError ? (
-            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
-          ) : isComplete ? (
+          {isComplete ? (
             <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          ) : isError ? (
+            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
           ) : (
             <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-spin shrink-0" />
           )}
           <div className="flex flex-col">
             <span
               className={`font-medium ${
-                hasError
-                  ? "text-red-700 dark:text-red-300"
-                  : isComplete
-                    ? "text-emerald-700 dark:text-emerald-300"
+                isComplete
+                  ? "text-emerald-700 dark:text-emerald-300"
+                  : isError
+                    ? "text-red-700 dark:text-red-300"
                     : "text-amber-700 dark:text-amber-300"
               }`}
             >
-              {hasError
-                ? `${displayName} failed`
-                : isComplete
-                  ? `${displayName} complete`
-                  : `${displayName}...`}
+              {toolStatus.label}
             </span>
+            {toolStatus.detail && (
+              <span className="text-xs text-red-600 dark:text-red-300">
+                {toolStatus.detail}
+              </span>
+            )}
             {searchQuery && (
               <span className="text-xs text-zinc-500 dark:text-zinc-400">
                 Query: &quot;{searchQuery}&quot;
@@ -159,11 +149,6 @@ export function ToolCallUI({ toolPart, closeChat }: ToolCallUIProps) {
             {orderStatus && (
               <span className="text-xs text-zinc-500 dark:text-zinc-400">
                 Filter: {orderStatus}
-              </span>
-            )}
-            {errorText && (
-              <span className="text-xs text-red-600 dark:text-red-400">
-                {errorText}
               </span>
             )}
           </div>

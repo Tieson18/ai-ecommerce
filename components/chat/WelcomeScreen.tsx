@@ -1,4 +1,4 @@
-import { Package, Search, Sparkles } from "lucide-react";
+import { Sparkles, Package, Search } from "lucide-react";
 
 interface WelcomeScreenProps {
   onSuggestionClick: (message: { text: string }) => void;

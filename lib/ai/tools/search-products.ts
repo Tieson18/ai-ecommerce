@@ -1,5 +1,3 @@
-import "server-only";
-
 import { tool } from "ai";
 import { z } from "zod";
 import type { SearchProduct } from "@/lib/ai/types";
@@ -39,12 +37,12 @@ const productSearchSchema = z.object({
     .number()
     .optional()
     .default(0)
-    .describe("Minimum price in GBP (e.g., 100)"),
+    .describe("Minimum price in GBP. Use 0 to disable the lower bound."),
   maxPrice: z
     .number()
     .optional()
     .default(0)
-    .describe("Maximum price in GBP (e.g., 500). Use 0 for no maximum."),
+    .describe("Maximum price in GBP. Use 0 to disable the upper bound."),
 });
 
 export const searchProductsTool = tool({
